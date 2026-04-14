@@ -11,7 +11,7 @@ local LocalPlayer = Players.LocalPlayer
 -- ============================================
 -- MASUKKAN ID LAGU ANDA DI SINI!!!
 -- Contoh format: "rbxassetid://ANGKA_ID"
-local BGM_ASSET_ID = "rbxassetid://1837879082" 
+local BGM_ASSET_ID = "rbxassetid://88485966093165" 
 -- ============================================
 
 -- Local Settings State
@@ -210,15 +210,18 @@ function SettingsController:UpdatePlotVisuals(plot)
     
     local slotsFolder = plot:FindFirstChild("Slots")
     if slotsFolder then
-        for _, baddieGroup in ipairs(slotsFolder:GetChildren()) do
-            if baddieGroup.Name == "SlotBaddie" then
-                -- Hide mesh parts using LocalTransparencyModifier to not break physical traits
-                for _, part in ipairs(baddieGroup:GetDescendants()) do
-                    if part:IsA("BasePart") or part:IsA("Decal") then
-                        part.LocalTransparencyModifier = targetTransparency
-                    elseif part:IsA("BillboardGui") then
-                        if part.Name == "Stats" or part.Name == "BaddieInfo" then
-                            part.Enabled = not shouldHide
+        -- Iterate through each specific slot (e.g. Slot1, Slot2) to find SlotBaddie
+        for _, slot in ipairs(slotsFolder:GetChildren()) do
+            for _, baddieGroup in ipairs(slot:GetChildren()) do
+                if baddieGroup.Name == "SlotBaddie" then
+                    -- Hide mesh parts using LocalTransparencyModifier to not break physical traits
+                    for _, part in ipairs(baddieGroup:GetDescendants()) do
+                        if part:IsA("BasePart") or part:IsA("Decal") then
+                            part.LocalTransparencyModifier = targetTransparency
+                        elseif part:IsA("BillboardGui") then
+                            if part.Name == "Stats" or part.Name == "BaddieInfo" then
+                                part.Enabled = not shouldHide
+                            end
                         end
                     end
                 end
@@ -275,8 +278,8 @@ function SettingsController:Start()
         for _, plot in ipairs(PlotsFolder:GetChildren()) do
             local slotsFolder = plot:FindFirstChild("Slots")
             if slotsFolder then
-                slotsFolder.ChildAdded:Connect(function(child)
-                    if child.Name == "SlotBaddie" then
+                slotsFolder.DescendantAdded:Connect(function(descendant)
+                    if descendant.Name == "SlotBaddie" then
                         task.wait(0.2) -- allow children (parts/meshes) to load before checking
                         self:UpdatePlotVisuals(plot)
                     end
