@@ -67,7 +67,9 @@ function CombatService:InitiateBattle(player, npcId, npcModel)
 		SPD = npcData.SPD,
 		Energy = 0,
 		Shield = 0,
+		ShieldStack = {},
 		Buffs = {},
+		CDs = {},
 		AI = npcData.AI
 	})
 
@@ -132,7 +134,9 @@ function CombatService:AssemblePlayerParty(profile)
 							Role      = bCfg.Role,
 							Energy    = startEnergy, MaxEnergy = 3,
 							Shield    = 0,
+							ShieldStack = {},
 							Buffs     = {},
+							CDs       = {},
 							SkillId   = bCfg.SkillId,
 							UltId     = bCfg.UltId
 						})
@@ -146,9 +150,27 @@ function CombatService:AssemblePlayerParty(profile)
 end
 
 function CombatService:CalculateDamage(attacker, defender, skillMultiplier)
-	local rawDamage     = attacker.ATK * skillMultiplier
-	local damageReduction = defender.DEF / (defender.DEF + 120)
+	local atkMult = 1.0
+	local defMult = 1.0
+
+	for _, buff in ipairs(attacker.Buffs) do
+		if buff.Type == "ATK_Up" then atkMult += buff.Value
+		elseif buff.Type == "ATK_Down" then atkMult -= buff.Value end
+	end
+	
+	for _, buff in ipairs(defender.Buffs) do
+		if buff.Type == "DEF_Up" then defMult += buff.Value
+		elseif buff.Type == "DEF_Down" then defMult -= buff.Value end
+	end
+
+	atkMult = math.max(0.1, atkMult)
+	defMult = math.max(0.1, defMult)
+
+	local rawDamage     = (attacker.ATK * atkMult) * skillMultiplier
+	local finalDef      = math.max(0, defender.DEF * defMult)
+	local damageReduction = finalDef / (finalDef + 120)
 	local finalDamage   = math.floor(rawDamage * (1 - damageReduction))
+	
 	return math.max(1, finalDamage)
 end
 
@@ -159,19 +181,35 @@ function CombatService:ApplyDamage(battleId, targetUid, damageAmount)
 	local targetUnit = self:GetUnitByUid(battleInst, targetUid)
 	if not targetUnit then return false end
 
-	local shieldBefore = targetUnit.Shield
-	local absorbed     = 0
+	local absorbed = 0
 
 	if targetUnit.Shield > 0 then
-		if damageAmount <= targetUnit.Shield then
-			absorbed          = damageAmount
-			targetUnit.Shield -= damageAmount
-			damageAmount      = 0
-		else
-			absorbed          = targetUnit.Shield
-			damageAmount      -= targetUnit.Shield
-			targetUnit.Shield = 0
+		for i = 1, #targetUnit.ShieldStack do
+			local st = targetUnit.ShieldStack[i]
+			if st and st.Amount > 0 and damageAmount > 0 then
+				if damageAmount <= st.Amount then
+					absorbed += damageAmount
+					st.Amount -= damageAmount
+					damageAmount = 0
+				else
+					absorbed += st.Amount
+					damageAmount -= st.Amount
+					st.Amount = 0
+				end
+			end
 		end
+
+		for i = #targetUnit.ShieldStack, 1, -1 do
+			if targetUnit.ShieldStack[i].Amount <= 0 then
+				table.remove(targetUnit.ShieldStack, i)
+			end
+		end
+
+		local totalShield = 0
+		for _, st in ipairs(targetUnit.ShieldStack) do
+			totalShield += st.Amount
+		end
+		targetUnit.Shield = totalShield
 	end
 
 	if damageAmount > 0 then
@@ -180,11 +218,80 @@ function CombatService:ApplyDamage(battleId, targetUid, damageAmount)
 	return true
 end
 
-function CombatService:ApplyShield(battleId, targetUid, shieldAmount)
+function CombatService:ApplyStackableShield(battleId, targetUid, amount, duration, maxStacks)
 	local battleInst = ActiveBattles[battleId]
 	if not battleInst then return end
-	local u = self:GetUnitByUid(battleInst, targetUid)
-	if u then u.Shield += shieldAmount end
+	local target = self:GetUnitByUid(battleInst, targetUid)
+	if not target then return end
+
+	maxStacks = maxStacks or 2
+	duration = duration or 2
+
+	if #target.ShieldStack >= maxStacks then
+		local lowestDurIdx = 1
+		local lowestDur = math.huge
+		for i, st in ipairs(target.ShieldStack) do
+			if st.Duration < lowestDur then
+				lowestDur = st.Duration
+				lowestDurIdx = i
+			end
+		end
+		target.ShieldStack[lowestDurIdx] = {Amount = amount, Duration = duration}
+	else
+		table.insert(target.ShieldStack, {Amount = amount, Duration = duration})
+	end
+
+	local totalShield = 0
+	for _, st in ipairs(target.ShieldStack) do
+		totalShield += st.Amount
+	end
+	target.Shield = totalShield
+end
+
+function CombatService:ApplyStackableBuff(battleId, targetUid, buffType, amount, duration, maxStacks)
+	local battleInst = ActiveBattles[battleId]
+	if not battleInst then return end
+	local target = self:GetUnitByUid(battleInst, targetUid)
+	if not target then return end
+
+	maxStacks = maxStacks or 2
+	duration = duration or 2
+
+	local sameTypeBuffs = {}
+	for i, buff in ipairs(target.Buffs) do
+		if buff.Type == buffType then
+			table.insert(sameTypeBuffs, {index = i, buff = buff})
+		end
+	end
+
+	if #sameTypeBuffs >= maxStacks then
+		local lowestDurIdx = sameTypeBuffs[1].index
+		local lowestDur = sameTypeBuffs[1].buff.Duration
+		for _, v in ipairs(sameTypeBuffs) do
+			if v.buff.Duration < lowestDur then
+				lowestDur = v.buff.Duration
+				lowestDurIdx = v.index
+			end
+		end
+		
+		local oldBuff = target.Buffs[lowestDurIdx]
+		if oldBuff.Type == "Speed" then
+			target.SPD -= oldBuff.Amount
+			target.AV = target.AV * ((target.SPD + oldBuff.Amount) / math.max(1, target.SPD))
+		end
+
+		target.Buffs[lowestDurIdx] = {Type = buffType, Amount = amount, Duration = duration}
+		if buffType == "Speed" then
+			target.SPD += amount
+			target.AV = target.AV * ((target.SPD - amount) / math.max(1, target.SPD))
+		end
+	else
+		table.insert(target.Buffs, {Type = buffType, Amount = amount, Duration = duration})
+		if buffType == "Speed" then
+			target.SPD += amount
+			target.AV = target.AV * ((target.SPD - amount) / math.max(1, target.SPD))
+		end
+	end
 end
 
 function CombatService:GenerateTurnQueue(battleInst, count)
@@ -246,9 +353,17 @@ end
 
 function CombatService:ProcessTurnStartHooks(battleId, unit)
 	local battleInst = ActiveBattles[battleId]
-	if not battleInst or unit.HP <= 0 then return end
+	if not battleInst or unit.HP <= 0 then return false end
+
+	-- Decrement CDs
+	if unit.CDs then
+		for skillId, cd in pairs(unit.CDs) do
+			if cd > 0 then unit.CDs[skillId] = cd - 1 end
+		end
+	end
 
 	local speedChanged = false
+	local isStunned = false
 
 	for i = #unit.Buffs, 1, -1 do
 		local buff = unit.Buffs[i]
@@ -258,6 +373,8 @@ function CombatService:ProcessTurnStartHooks(battleId, unit)
 			self:ApplyDamage(battleId, unit.Uid, dmg)
 			TurnUpdateEvent:FireClient(battleInst.Player, "AttackVisual", unit.Uid, unit.Uid, dmg, unit.HP, unit.MaxHP, unit.Shield, "VFX_Burn_Tick")
 			task.wait(0.5)
+		elseif buff.Type == "Stun" then
+			isStunned = true
 		end
 
 		buff.Duration -= 1
@@ -272,10 +389,28 @@ function CombatService:ProcessTurnStartHooks(battleId, unit)
 		end
 	end
 
+	for i = #unit.ShieldStack, 1, -1 do
+		unit.ShieldStack[i].Duration -= 1
+		if unit.ShieldStack[i].Duration <= 0 then
+			table.remove(unit.ShieldStack, i)
+		end
+	end
+
+	local totalShield = 0
+	for _, st in ipairs(unit.ShieldStack) do
+		totalShield += st.Amount
+	end
+	if unit.Shield ~= totalShield then
+		unit.Shield = totalShield
+		TurnUpdateEvent:FireClient(battleInst.Player, "UpdateHPBar", unit.Uid, nil, nil, unit.HP, unit.MaxHP, unit.Shield)
+	end
+
 	if speedChanged then
 		local refreshedQueue = self:BuildDisplayQueue(battleInst, unit, 5)
 		TurnUpdateEvent:FireClient(battleInst.Player, "RefreshTurnQueue", refreshedQueue)
 	end
+	
+	return isStunned
 end
 
 function CombatService:ProcessNextTurn(battleId)
@@ -304,11 +439,19 @@ function CombatService:ProcessNextTurn(battleId)
 	currentUnit.AV           = 10000 / math.max(1, currentUnit.SPD)
 	battleInst.CurrentActorUid = currentUnit.Uid
 
-	self:ProcessTurnStartHooks(battleId, currentUnit)
+	local isStunned = self:ProcessTurnStartHooks(battleId, currentUnit)
 
 	if currentUnit.HP <= 0 then
 		task.delay(1.5, function()
 			if not ActiveBattles[battleId] or ActiveBattles[battleId].State ~= "InProgress" then return end
+			self:NextTurn(battleId)
+		end)
+		return
+	end
+
+	if isStunned then
+		TurnUpdateEvent:FireClient(battleInst.Player, "AttackVisual", currentUnit.Uid, currentUnit.Uid, "STUNNED!", currentUnit.HP, currentUnit.MaxHP, currentUnit.Shield, nil)
+		task.delay(1.5, function()
 			self:NextTurn(battleId)
 		end)
 		return
@@ -321,7 +464,8 @@ function CombatService:ProcessNextTurn(battleId)
 		ActionRequestEvent:FireClient(battleInst.Player, {
 			BattleId   = battleId,
 			ActiveUnit = currentUnit,
-			Enemies    = aliveEnemies
+			Enemies    = aliveEnemies,
+			SkillCDs   = currentUnit.CDs
 		})
 	else
 		task.delay(1.5, function()
@@ -364,34 +508,44 @@ function CombatService:ProcessEffects(battleId, attacker, target, effectsArray, 
 	local appliedTags = {}
 
 	for _, effect in ipairs(effectsArray) do
-		if effect.Type == "Damage" then
-			local dmg = self:CalculateDamage(attacker, target, effect.Multiplier)
-			self:ApplyDamage(battleId, target.Uid, dmg)
-			totalDamage += dmg
-		elseif effect.Type == "Heal" then
-			local heal = math.floor(attacker.ATK * effect.Multiplier)
-			target.HP = math.min(target.MaxHP, target.HP + heal)
-			totalHeal += heal
-		elseif effect.Type == "Shield" then
-			local shield = math.floor(attacker.DEF * effect.Multiplier)
-			self:ApplyShield(battleId, target.Uid, shield)
-			totalShield += shield
-		elseif effect.Type == "Buff" and effect.BuffType == "Speed" then
-			target.SPD += effect.Amount
-			target.AV = target.AV * ((target.SPD - effect.Amount) / target.SPD)
-			table.insert(target.Buffs, {Type = "Speed", Amount = effect.Amount, Duration = effect.Duration or 2})
-			table.insert(appliedTags, "+SPEED")
-		elseif effect.Type == "ApplyStatus" then
-			table.insert(target.Buffs, {Type = effect.Status, Duration = effect.Duration, Value = effect.Value})
-			table.insert(appliedTags, string.upper(effect.Status))
+		-- Chance calculation for effect
+		local applies = true
+		if effect.Chance then
+			applies = (math.random(1, 100) <= effect.Chance)
+		end
+
+		if applies then
+			if effect.Type == "Damage" then
+				local dmg = self:CalculateDamage(attacker, target, effect.Multiplier)
+				self:ApplyDamage(battleId, target.Uid, dmg)
+				totalDamage += dmg
+			elseif effect.Type == "Heal" then
+				local heal = math.floor(attacker.MaxHP * effect.Multiplier)
+				target.HP = math.min(target.MaxHP, target.HP + heal)
+				totalHeal += heal
+			elseif effect.Type == "Shield" then
+				local shield = math.floor(attacker.DEF * effect.Multiplier)
+				self:ApplyStackableShield(battleId, target.Uid, shield, effect.Duration, effect.MaxStacks)
+				totalShield += shield
+			elseif effect.Type == "Buff" then
+				self:ApplyStackableBuff(battleId, target.Uid, effect.BuffType, effect.Amount, effect.Duration, effect.MaxStacks)
+				table.insert(appliedTags, "+" .. effect.Amount .. " " .. effect.BuffType)
+			elseif effect.Type == "ApplyStatus" then
+				self:ApplyStackableBuff(battleId, target.Uid, effect.Status, effect.Value or 0, effect.Duration, effect.MaxStacks or 1)
+				table.insert(appliedTags, "+" .. string.upper(effect.Status))
+			end
 		end
 	end
 
 	local displayValue = 0
 	if totalDamage > 0 then displayValue = totalDamage 
 	elseif totalHeal > 0 then displayValue = -totalHeal
-	elseif totalShield > 0 then displayValue = "SHIELD"
-	elseif #appliedTags > 0 then displayValue = table.concat(appliedTags, ", ") end
+	else
+		local customTexts = {}
+		if totalShield > 0 then table.insert(customTexts, "+" .. totalShield .. " Shield") end
+		if #appliedTags > 0 then table.insert(customTexts, table.concat(appliedTags, "\n")) end
+		if #customTexts > 0 then displayValue = table.concat(customTexts, "\n") end
+	end
 
 	TurnUpdateEvent:FireClient(battleInst.Player, "AttackVisual", attacker.Uid, target.Uid, displayValue, target.HP, target.MaxHP, target.Shield, visualTag)
 
@@ -420,9 +574,16 @@ function CombatService:ExecuteAction(battleId, attacker, actionType, targetUid)
 		attacker.Energy = math.min(attacker.MaxEnergy, attacker.Energy + (skillInfo.EnergyGain or 1))
 	end
 
+	-- Apply Cooldown internally if any
+	if skillInfo.Cooldown and actionType == "Skill" then
+		attacker.CDs[usedSkillId] = skillInfo.Cooldown
+	end
+
 	local actualTargets = {}
 
-	if skillInfo.TargetRule == "All_Allies" and attacker.IsPlayer then
+	if skillInfo.TargetRule == "All_Enemies" then
+		actualTargets = attacker.IsPlayer and self:GetAliveEnemies(battleInst) or self:GetAlivePlayers(battleInst)
+	elseif skillInfo.TargetRule == "All_Allies" and attacker.IsPlayer then
 		actualTargets = self:GetAlivePlayers(battleInst)
 	elseif skillInfo.TargetRule == "All_Allies_Exclude_Self" and attacker.IsPlayer then
 		local allies = self:GetAlivePlayers(battleInst)
@@ -447,12 +608,24 @@ function CombatService:ExecuteAction(battleId, attacker, actionType, targetUid)
 		return
 	end
 
-	local specialModule = ReplicatedStorage.Shared:FindFirstChild("SpecialSkills")
+	local specialModule = ReplicatedStorage.Shared:FindFirstChild("SpecialSkill")
 	if specialModule then
 		local skillScript = specialModule:FindFirstChild(usedSkillId)
 		if skillScript then
 			local executor = require(skillScript)
-			executor.Execute(self, battleId, attacker, actualTargets, skillInfo)
+			
+			local success, err = pcall(function()
+				executor.Execute(self, battleId, attacker, actualTargets, skillInfo)
+			end)
+			
+			if not success then
+				warn("⚠️ [CombatService] Error executing SpecialSkill '" .. usedSkillId .. "':\n" .. tostring(err))
+			end
+			
+			task.delay(2.5, function()
+				if not ActiveBattles[battleId] or ActiveBattles[battleId].State ~= "InProgress" then return end
+				self:NextTurn(battleId)
+			end)
 			return
 		end
 	end

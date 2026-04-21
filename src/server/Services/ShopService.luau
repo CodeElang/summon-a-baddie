@@ -57,7 +57,7 @@ function ShopService:Start()
 		end
 
 		local nextRestock = (currentCycle + 1) * 300
-		return profile.Data.PersonalShop, profile.Data.RebirthLevel, nextRestock
+		return profile.Data.PersonalShop, profile.Data.RebirthLevel, nextRestock, profile.Data.Cash
 	end
 
 	BuyBookEvent.OnServerInvoke = function(player, slotIndex, buyMode)
@@ -70,7 +70,16 @@ function ShopService:Start()
 		local rebirthReq = slotData.RebirthReq or 0
 		if profile.Data.RebirthLevel < rebirthReq then return false, "LOCKED!" end
 
-		local amountToBuy = (buyMode == "All") and slotData.Stock or 1
+		local amountToBuy = 1
+		if buyMode == "All" then
+			-- Cerdas: Beli maksimal sesuai dengan uang yang dimiliki (dibatasi oleh stok toko)
+			amountToBuy = math.min(slotData.Stock, math.floor(profile.Data.Cash / slotData.Price))
+		end
+		
+		if amountToBuy <= 0 then
+			return false, "Not enough Cash!"
+		end
+
 		local totalPrice  = slotData.Price * amountToBuy
 
 		if profile.Data.Cash >= totalPrice then
@@ -79,9 +88,10 @@ function ShopService:Start()
 			profile.Data.Books[slotData.Name] = (profile.Data.Books[slotData.Name] or 0) + amountToBuy
 
 			UpdateCashEvent:FireClient(player, profile.Data.Cash)
-			return true, "Success!", slotData.Stock
+			return true, "Success! Bought " .. tostring(amountToBuy), slotData.Stock
 		else
-			return false, "Not enough Cash!"
+			-- Fallback error jika gagal
+			return false, "Transaction Failed!"
 		end
 	end
 end

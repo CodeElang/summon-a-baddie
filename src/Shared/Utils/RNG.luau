@@ -14,7 +14,10 @@ function RNG.RollBaddie(luckMultiplier, tierBoosts)
 	local wonRarity = "Common"
 
 
-	for _, baddie in ipairs(GameConfig.BaddiesData) do
+	-- Iterasi HARUS MUNDUR (dari Rarity tertinggi ke terendah) 
+	-- agar item Common yang punya Chance kecil tidak selalu terpilih saat Luck tinggi.
+	for i = #GameConfig.BaddiesData, 1, -1 do
+		local baddie = GameConfig.BaddiesData[i]
 		-- Menggunakan presisi floating point (NextNumber) agar bisa memproses
 		-- Chance raksasa (Triliunan) dari GameConfig auto-calculator kita dengan akurat.
 		local roll = Randomizer:NextNumber(0, baddie.Chance)

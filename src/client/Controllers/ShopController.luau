@@ -8,6 +8,7 @@ local MarketplaceService = game:GetService("MarketplaceService")
 local Network = ReplicatedStorage.Network
 local GetShopDataEvent = Network:WaitForChild("GetShopData")
 local BuyBookEvent = Network:WaitForChild("BuyBook")
+local UpdateCashEvent = Network:WaitForChild("UpdateCash")
 local FormatNumber = require(ReplicatedStorage.Shared.Utils.FormatNumber)
 local GameConfig = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("GameConfig"))
 
@@ -30,6 +31,13 @@ function ShopController:Start()
 	local nextRestockTime = 0
 	local isShopOpen = false
 	local isPurchasing = false -- Mencegah spam click yang bisa membuat server lag
+	local currentCash = 0
+
+	UpdateCashEvent.OnClientEvent:Connect(function(newCash)
+		currentCash = newCash
+		-- Opsional: Jika kita mau tombol update tiap detik, panggil fungsi update seluruh UI disini (terlalu berat). 
+		-- Cukup simpan memorinya, lalu saat Card dikalkulasi dia pake nilai ini.
+	end)
 
 	local function RenderShop(shopData, pRebirth, nextRestock)
 		-- Bersihkan kartu lama (Event koneksi akan otomatis terhapus oleh Garbage Collector Luau)
@@ -108,7 +116,12 @@ function ShopController:Start()
 							buy1Btn.Visible = true 
 						end
 						if buyAllBtn then 
-							buyAllBtn.Text = "BUY ALL\n$" .. FormatNumber.Format(slot.Price * slot.Stock)
+							local affordableAmount = math.min(slot.Stock, math.floor(currentCash / slot.Price))
+							if affordableAmount > 0 then
+								buyAllBtn.Text = "BUY " .. affordableAmount .. "\n$" .. FormatNumber.Format(slot.Price * affordableAmount)
+							else
+								buyAllBtn.Text = "BUY ALL\nNot enough $"
+							end
 							buyAllBtn.Visible = true 
 						end
 					else
@@ -132,7 +145,7 @@ function ShopController:Start()
 				local success, msg, newStock = BuyBookEvent:InvokeServer(i, buyMode)
 				if success then
 					slot.Stock = newStock
-					updateCardUI()
+					updateCardUI() -- Cerdas: Update visual kartu kalau stok ganti
 				else
 					btn.Text = msg
 					task.wait(1)
@@ -166,8 +179,9 @@ function ShopController:Start()
 		end
 
 		prompt.Triggered:Connect(function()
-			local shopData, pRebirth, nextRestock = GetShopDataEvent:InvokeServer()
+			local shopData, pRebirth, nextRestock, startingCash = GetShopDataEvent:InvokeServer()
 			if shopData then
+				if startingCash then currentCash = startingCash end
 				RenderShop(shopData, pRebirth, nextRestock)
 				isShopOpen = true
 				shopFrame.Visible = true
@@ -189,8 +203,9 @@ function ShopController:Start()
 				if timeLeft <= 0 then
 					timerLabel.Text = "Restocking..."
 					if isShopOpen then
-						local newShopData, newRebirth, newNextRestock = GetShopDataEvent:InvokeServer()
+						local newShopData, newRebirth, newNextRestock, newCash = GetShopDataEvent:InvokeServer()
 						if newShopData then
+							if newCash then currentCash = newCash end
 							RenderShop(newShopData, newRebirth, newNextRestock)
 						end
 					end

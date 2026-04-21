@@ -182,12 +182,56 @@ function CombatController:Start()
 		end
 	end
 
-	local function CreateHPBar(model, unitName, maxHp, currentHp, currentShield)
-		currentShield = currentShield or 0
-		currentHp = math.max(0, currentHp)
+	local function UpdateHPBar(model, maxHp, currentHp, currentShield)
 		local head = model:FindFirstChild("Head") or model.PrimaryPart
 		if not head then return end
-		if head:FindFirstChild("HPBar") then head.HPBar:Destroy() end
+		local bb = head:FindFirstChild("HPBar")
+		if not bb then return end
+
+		currentShield = currentShield or 0
+		currentHp = math.max(0, currentHp)
+
+		local hpLbl = bb:FindFirstChild("HPLabel")
+		if hpLbl then
+			local hpText = tostring(math.floor(currentHp)) .. " / " .. tostring(maxHp)
+			if currentShield > 0 then hpText = hpText .. "   🛡 " .. tostring(math.floor(currentShield)) end
+			hpLbl.Text = hpText
+		end
+
+		local hpBg = bb:FindFirstChild("HPBarBG")
+		if hpBg then
+			local hpFill = hpBg:FindFirstChild("HPFill")
+			local shieldFill = hpBg:FindFirstChild("ShieldFill")
+
+			local hpPercent = math.clamp(currentHp / maxHp, 0, 1)
+			local shieldPercent = math.clamp(currentShield / maxHp, 0, 1)
+
+			local tInfo = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+
+			if hpFill then
+				TweenService:Create(hpFill, tInfo, {Size = UDim2.new(hpPercent, 0, 1, 0)}):Play()
+			end
+
+			if shieldFill then
+				TweenService:Create(shieldFill, tInfo, {
+					Size = UDim2.new(shieldPercent, 0, 1, 0),
+					Position = UDim2.new(0, 0, 0, 0)
+				}):Play()
+			end
+		end
+	end
+
+	local function CreateHPBar(model, unitName, maxHp, currentHp, currentShield)
+		local head = model:FindFirstChild("Head") or model.PrimaryPart
+		if not head then return end
+		
+		if head:FindFirstChild("HPBar") then 
+			UpdateHPBar(model, maxHp, currentHp, currentShield)
+			return 
+		end
+
+		currentShield = currentShield or 0
+		currentHp = math.max(0, currentHp)
 
 		local bb = Instance.new("BillboardGui", head)
 		bb.Name = "HPBar"
@@ -196,6 +240,7 @@ function CombatController:Start()
 		bb.AlwaysOnTop = true
 
 		local nameLbl = Instance.new("TextLabel", bb)
+		nameLbl.Name = "NameLabel"
 		nameLbl.Size = UDim2.new(1, 0, 0.28, 0)
 		nameLbl.Position = UDim2.new(0, 0, 0, 0)
 		nameLbl.BackgroundTransparency = 1
@@ -209,6 +254,7 @@ function CombatController:Start()
 		if currentShield > 0 then hpText = hpText .. "   🛡 " .. tostring(math.floor(currentShield)) end
 
 		local hpLbl = Instance.new("TextLabel", bb)
+		hpLbl.Name = "HPLabel"
 		hpLbl.Size = UDim2.new(1, 0, 0.22, 0)
 		hpLbl.Position = UDim2.new(0, 0, 0.28, 0)
 		hpLbl.BackgroundTransparency = 1
@@ -218,36 +264,31 @@ function CombatController:Start()
 		hpLbl.TextScaled = true
 		hpLbl.TextStrokeTransparency = 0.2
 
-		local shieldBg = Instance.new("Frame", bb)
-		shieldBg.Name = "ShieldBarBG"
-		shieldBg.Size = UDim2.new(1, 0, 0.16, 0)
-		shieldBg.Position = UDim2.new(0, 0, 0.52, 0)
-		shieldBg.BackgroundColor3 = Color3.fromRGB(20, 20, 50)
-		shieldBg.ClipsDescendants = true
-		shieldBg.Visible = currentShield > 0
-		Instance.new("UICorner", shieldBg).CornerRadius = UDim.new(1, 0)
-
-		if currentShield > 0 then
-			local shieldPercent = math.clamp(currentShield / maxHp, 0, 1)
-			local shieldFill = Instance.new("Frame", shieldBg)
-			shieldFill.Size = UDim2.new(shieldPercent, 0, 1, 0)
-			shieldFill.BackgroundColor3 = Color3.fromRGB(85, 170, 255)
-			Instance.new("UICorner", shieldFill).CornerRadius = UDim.new(1, 0)
-		end
-
 		local hpBg = Instance.new("Frame", bb)
 		hpBg.Name = "HPBarBG"
 		hpBg.Size = UDim2.new(1, 0, 0.16, 0)
-		hpBg.Position = UDim2.new(0, 0, 0.72, 0)
+		hpBg.Position = UDim2.new(0, 0, 0.60, 0)
 		hpBg.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 		hpBg.ClipsDescendants = true
 		Instance.new("UICorner", hpBg).CornerRadius = UDim.new(1, 0)
 
 		local hpPercent = math.clamp(currentHp / maxHp, 0, 1)
-		local fill = Instance.new("Frame", hpBg)
-		fill.Size = UDim2.new(hpPercent, 0, 1, 0)
-		fill.BackgroundColor3 = Color3.fromRGB(200, 40, 40)
-		Instance.new("UICorner", fill).CornerRadius = UDim.new(1, 0)
+		local shieldPercent = math.clamp(currentShield / maxHp, 0, 1)
+
+		local hpFill = Instance.new("Frame", hpBg)
+		hpFill.Name = "HPFill"
+		hpFill.Size = UDim2.new(hpPercent, 0, 1, 0)
+		hpFill.BackgroundColor3 = Color3.fromRGB(200, 40, 40)
+		hpFill.ZIndex = 1
+		Instance.new("UICorner", hpFill).CornerRadius = UDim.new(1, 0)
+
+		local shieldFill = Instance.new("Frame", hpBg)
+		shieldFill.Name = "ShieldFill"
+		shieldFill.Size = UDim2.new(shieldPercent, 0, 1, 0)
+		shieldFill.Position = UDim2.new(0, 0, 0, 0)
+		shieldFill.BackgroundColor3 = Color3.fromRGB(85, 170, 255)
+		shieldFill.ZIndex = 2
+		Instance.new("UICorner", shieldFill).CornerRadius = UDim.new(1, 0)
 	end
 
 	local function ShowDamagePopup(model, amount)
@@ -325,12 +366,25 @@ function CombatController:Start()
 		currentTargetUid = data.Enemies[1].Uid
 
 		local activeUnit = data.ActiveUnit
+		local skillCDs = data.SkillCDs or {}
 
 		if activeUnit.Tier == 1 then
 			SkillBtn.Visible = false
 			UltBtn.Visible = false
 		else
 			SkillBtn.Visible = true
+			
+			local currentSkillCD = skillCDs[activeUnit.SkillId] or 0
+			if currentSkillCD > 0 then
+				SkillBtn.Text = "CD: " .. tostring(currentSkillCD)
+				SkillBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+				SkillBtn.Active = false
+			else
+				SkillBtn.Text = "SKILL"
+				SkillBtn.BackgroundColor3 = Color3.fromRGB(200, 200, 200)
+				SkillBtn.Active = true
+			end
+
 			if activeUnit.Tier >= 5 then
 				UltBtn.Visible = true
 				UltBtn.Text = "ULTIMATE (" .. activeUnit.Energy .. "/3)"
@@ -355,7 +409,7 @@ function CombatController:Start()
 	end)
 
 	SkillBtn.MouseButton1Click:Connect(function()
-		if not currentTargetUid then return end
+		if not currentTargetUid or not SkillBtn.Active then return end
 		CombatHUD.Visible = false
 		SubmitActionEvent:InvokeServer(currentBattleId, "Skill", currentTargetUid)
 	end)
@@ -378,6 +432,15 @@ function CombatController:Start()
 
 		elseif action == "RefreshTurnQueue" then
 			if param1 then RenderTurnQueue(param1) end
+
+		elseif action == "UpdateHPBar" then
+			local targetUid = param1
+			local arena = workspace:FindFirstChild("Arena_" .. currentBattleId)
+			if not arena then return end
+			local tgtModel = arena:FindFirstChild(targetUid)
+			if tgtModel then
+				CreateHPBar(tgtModel, unitNames[targetUid] or "Unknown", maxHp, newHp, shield)
+			end
 
 		elseif action == "AttackVisual" then
 			local attackerUid = param1
@@ -432,7 +495,7 @@ function CombatController:Start()
 					lastAnimTick = currentTick
 
 					local hum = atkModel:FindFirstChildOfClass("Humanoid")
-					local animObj = ReplicatedStorage.Shared.Assets.Animations:FindFirstChild("CastHeal")
+					local animObj = ReplicatedStorage.Assets.Animations:FindFirstChild("CastHeal")
 					if hum and animObj then
 						local animator = hum:FindFirstChildOfClass("Animator") or Instance.new("Animator", hum)
 						local track = animator:LoadAnimation(animObj)
@@ -441,7 +504,7 @@ function CombatController:Start()
 						track:Play()
 					end
 
-					local sfx = ReplicatedStorage.Shared.Assets.Sounds:FindFirstChild("HealSFX")
+					local sfx = ReplicatedStorage.Assets.Sounds:FindFirstChild("HealSFX")
 					if sfx then
 						local sfxClone = sfx:Clone()
 						sfxClone.Parent = atkModel.PrimaryPart
@@ -450,7 +513,7 @@ function CombatController:Start()
 					end
 				end
 
-				local vfx = ReplicatedStorage.Shared.Assets.VFX:FindFirstChild("HealAura")
+				local vfx = ReplicatedStorage.Assets.VFX:FindFirstChild("HealAura")
 				if vfx then
 					local vfxClone = vfx:Clone()
 					vfxClone.Parent = tgtModel.PrimaryPart

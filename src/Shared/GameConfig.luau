@@ -95,7 +95,7 @@ GameConfig.BaddiesData = {
 	{ Name="Worker Baddie",  Rarity="Common", Tier=1, Role="Tank",    BaseHP=420, BaseATK=40, BaseDEF=45, BaseSPD=80, SkillId="Heavy_Strike", Chance=5,  Income=19, SellPrice=12_540 },
 	{ Name="Wakuri Baddie",  Rarity="Common", Tier=1, Role="Support", BaseHP=300, BaseATK=45, BaseDEF=30, BaseSPD=105,                        Chance=10, Income=24, SellPrice=15_840 },
 	{ Name="Cute Baddie",    Rarity="Common", Tier=1, Role="DPS",     BaseHP=290, BaseATK=75, BaseDEF=20, BaseSPD=110,                        Chance=16, Income=30, SellPrice=19_800 },
-	{ Name="School Baddie",  Rarity="Common", Tier=1, Role="Support", BaseHP=350, BaseATK=50, BaseDEF=35, BaseSPD=100,                        Chance=22, Income=38, SellPrice=25_080 },
+	{ Name="School Baddie",  Rarity="Common", Tier=1, Role="Support", BaseHP=350, BaseATK=50, BaseDEF=35, BaseSPD=100, SkillId="FollowMyLead", Chance=22, Income=38, SellPrice=25_080 },
 
 
 	-- TIER 2: RARE (Sell Mult: 720)
@@ -107,19 +107,19 @@ GameConfig.BaddiesData = {
 
 
 	-- TIER 3: SUPERIOR (Sell Mult: 780)
-	{ Name="Mirei Baddie",     Rarity="Superior", Tier=3, Role="DPS",     BaseHP=900,  BaseATK=240, BaseDEF=80,  BaseSPD=115, SkillId="Party_Heal", Chance=288,   Income=183, SellPrice=142_740 },
-	{ Name="Slayer Baddie",    Rarity="Superior", Tier=3, Role="DPS",     BaseHP=850,  BaseATK=260, BaseDEF=70,  BaseSPD=120, Chance=720,   Income=228, SellPrice=177_840 },
-	{ Name="Brazilian Baddie", Rarity="Superior", Tier=3, Role="Tank",    BaseHP=1200, BaseATK=180, BaseDEF=150, BaseSPD=85,  Chance=1_440, Income=292, SellPrice=227_760 },
-	{ Name="Blizzard Baddie",  Rarity="Superior", Tier=3, Role="Control", BaseHP=950,  BaseATK=220, BaseDEF=95,  BaseSPD=105, Chance=2_304, Income=366, SellPrice=285_480 },
-	{ Name="Smug Baddie",      Rarity="Superior", Tier=3, Role="DPS",     BaseHP=880,  BaseATK=275, BaseDEF=75,  BaseSPD=115, Chance=3_168, Income=457, SellPrice=356_460 },
+	{ Name="Mirei Baddie",     Rarity="Superior", Tier=3, Role="DPS",     BaseHP=900,  BaseATK=240, BaseDEF=80,  BaseSPD=115, SkillId="Hemokinesis", Chance=288,   Income=183, SellPrice=142_740 },
+	{ Name="Butterfly Baddie", Rarity="Superior", Tier=3, Role="DPS",     BaseHP=850,  BaseATK=260, BaseDEF=70,  BaseSPD=120, SkillId="Wisteria_Poison", Chance=720,   Income=228, SellPrice=177_840 },
+	{ Name="Brazilian Baddie", Rarity="Superior", Tier=3, Role="Tank",    BaseHP=1200, BaseATK=180, BaseDEF=150, BaseSPD=85,  SkillId="BrazillianPhonk", Chance=1_440, Income=292, SellPrice=227_760 },
+	{ Name="Student President Baddie",  Rarity="Superior", Tier=3, Role="Support", BaseHP=950,  BaseATK=220, BaseDEF=95,  BaseSPD=105, SkillId="FollowMyLead", Chance=2_304, Income=366, SellPrice=285_480 },
+	{ Name="Smug Baddie",      Rarity="Superior", Tier=3, Role="DPS",     BaseHP=880,  BaseATK=275, BaseDEF=75,  BaseSPD=115, SkillId="SmugCut", Chance=3_168, Income=457, SellPrice=356_460 },
 
 
 	-- TIER 4: EPIC (Sell Mult: 840)
-	{ Name="Cat Ear Baddie",  Rarity="Epic", Tier=4, Role="DPS",     BaseHP=1600, BaseATK=450, BaseDEF=130, BaseSPD=125, Chance=3_456,  Income=643,   SellPrice=540_120 },
-	{ Name="Emo Baddie",      Rarity="Epic", Tier=4, Role="DPS",     BaseHP=1550, BaseATK=480, BaseDEF=120, BaseSPD=120, Chance=8_640,  Income=803,   SellPrice=674_520 },
-	{ Name="Blood Devil",     Rarity="Epic", Tier=4, Role="DPS",     BaseHP=1700, BaseATK=520, BaseDEF=140, BaseSPD=115, Chance=17_280, Income=1_028, SellPrice=863_520 },
+	{ Name="Cat Ear Baddie",  Rarity="Epic", Tier=4, Role="DPS",     BaseHP=1600, BaseATK=450, BaseDEF=130, BaseSPD=125, SkillId="Cat_Noises", Chance=3_456,  Income=643,   SellPrice=540_120 },
+	{ Name="Emo Baddie",      Rarity="Epic", Tier=4, Role="DPS",     BaseHP=1550, BaseATK=480, BaseDEF=120, BaseSPD=120, SkillId="Depression", Chance=8_640,  Income=803,   SellPrice=674_520 },
+	{ Name="Blood Devil",     Rarity="Epic", Tier=4, Role="DPS",     BaseHP=1700, BaseATK=520, BaseDEF=140, BaseSPD=115, SkillId="Powa_Hamma", Chance=17_280, Income=1_028, SellPrice=863_520 },
 	{ Name="Obsessed Baddie", Rarity="Epic", Tier=4, Role="Control", BaseHP=1650, BaseATK=400, BaseDEF=150, BaseSPD=130, Chance=27_648, Income=1_286, SellPrice=1_080_240 },
-	{ Name="Clumsy Baddie",   Rarity="Epic", Tier=4, Role="Support", BaseHP=1800, BaseATK=350, BaseDEF=180, BaseSPD=120, Chance=38_000, Income=1_607, SellPrice=1_349_880 },
+	{ Name="Clumsy Baddie",   Rarity="Epic", Tier=4, Role="Support", BaseHP=1800, BaseATK=350, BaseDEF=180, BaseSPD=120, SkillId="Trip", Chance=38_000, Income=1_607, SellPrice=1_349_880 },
 
 
 	-- TIER 5: LEGENDARY (Sell Mult: 900)
@@ -141,7 +141,7 @@ GameConfig.BaddiesData = {
 	-- TIER 7: ASCENDANT (Sell Mult: 1020)
 	{ Name="Snake Princess",Rarity="Ascendant", Tier=7, Role="Control", BaseHP=7000, BaseATK=2100, BaseDEF=800, BaseSPD=165, Chance=6_000_000, Income=27_562, SellPrice=28_113_240 },
 	{ Name="Love Sword",    Rarity="Ascendant", Tier=7, Role="DPS",     BaseHP=7500, BaseATK=2400, BaseDEF=750, BaseSPD=170, Chance=15_000_000,Income=34_452, SellPrice=35_141_040 },
-	{ Name="Apothecary",    Rarity="Ascendant", Tier=7, Role="Support", BaseHP=8200, BaseATK=1900, BaseDEF=950, BaseSPD=150, Chance=30_000_000,Income=44_099, SellPrice=44_980_980 },
+	{ Name="Apothecary",    Rarity="Ascendant", Tier=7, Role="Support", BaseHP=8200, BaseATK=1900, BaseDEF=950, BaseSPD=150, SkillId="Wisteria_Poison", Chance=30_000_000,Income=44_099, SellPrice=44_980_980 },
 	{ Name="Zenin Baddie",  Rarity="Ascendant", Tier=7, Role="DPS",     BaseHP=7800, BaseATK=2600, BaseDEF=700, BaseSPD=180, Chance=48_000_000,Income=55_124, SellPrice=56_226_480 },
 	{ Name="Railgun Baddie",Rarity="Ascendant", Tier=7, Role="DPS",     BaseHP=7600, BaseATK=2800, BaseDEF=650, BaseSPD=175, Chance=65_000_000,Income=68_905, SellPrice=70_283_100 },
 
@@ -355,7 +355,7 @@ GameConfig.Zones = {
 
 
 GameConfig.NPCData = {
-	["NPC_Slime"] = { Name = "Forest Slime", Zone = "Forest", HP = 1500, ATK = 120, DEF = 50, SPD = 85, AI = "Basic" },
+	["NPC_Slime"] = { Name = "Forest Slime", Zone = "Forest", HP = 100500, ATK = 120, DEF = 50, SPD = 85, AI = "Basic" },
 	["NPC_Goblin"] = { Name = "Goblin Boss",  Zone = "Forest", HP = 4500, ATK = 250, DEF = 80, SPD = 95, AI = "Aggressive" }
 }
 
