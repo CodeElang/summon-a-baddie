@@ -117,21 +117,20 @@ GameConfig.BaddiesData = {
 	-- TIER 4: EPIC (Sell Mult: 840)
 	{ Name="Cat Ear Baddie",  Rarity="Epic", Tier=4, Role="DPS",     BaseHP=1600, BaseATK=450, BaseDEF=130, BaseSPD=125, SkillId="Cat_Noises", Chance=3_456,  Income=643,   SellPrice=540_120 },
 	{ Name="Emo Baddie",      Rarity="Epic", Tier=4, Role="DPS",     BaseHP=1550, BaseATK=480, BaseDEF=120, BaseSPD=120, SkillId="Depression", Chance=8_640,  Income=803,   SellPrice=674_520 },
-	{ Name="Blood Devil",     Rarity="Epic", Tier=4, Role="DPS",     BaseHP=1700, BaseATK=520, BaseDEF=140, BaseSPD=115, SkillId="Powa_Hamma", Chance=17_280, Income=1_028, SellPrice=863_520 },
+	{ Name="Blood Fiend Baddie",     Rarity="Epic", Tier=4, Role="DPS",     BaseHP=1700, BaseATK=520, BaseDEF=140, BaseSPD=115, SkillId="Controller_Ult", Chance=17_280, Income=1_028, SellPrice=863_520 },
 	{ Name="Obsessed Baddie", Rarity="Epic", Tier=4, Role="Control", BaseHP=1650, BaseATK=400, BaseDEF=150, BaseSPD=130, Chance=27_648, Income=1_286, SellPrice=1_080_240 },
 	{ Name="Clumsy Baddie",   Rarity="Epic", Tier=4, Role="Support", BaseHP=1800, BaseATK=350, BaseDEF=180, BaseSPD=120, SkillId="Trip", Chance=38_000, Income=1_607, SellPrice=1_349_880 },
-
 
 	-- TIER 5: LEGENDARY (Sell Mult: 900)
 	{ Name="Maid Baddie",   Rarity="Legendary", Tier=5, Role="Support", BaseHP=3200, BaseATK=650,  BaseDEF=350, BaseSPD=135, Chance=41_500,  Income=2_250, SellPrice=2_025_000 },
 	{ Name="Genius Baddie", Rarity="Legendary", Tier=5, Role="Control", BaseHP=3000, BaseATK=720,  BaseDEF=300, BaseSPD=130, Chance=100_000, Income=2_812, SellPrice=2_530_800 },
-	{ Name="Elf Baddie",    Rarity="Legendary", Tier=5, Role="DPS",     BaseHP=2800, BaseATK=850,  BaseDEF=250, BaseSPD=140, Chance=200_000, Income=3_600, SellPrice=3_240_000 },
-	{ Name="Pirate Baddie", Rarity="Legendary", Tier=5, Role="DPS",     BaseHP=3000, BaseATK=900,  BaseDEF=280, BaseSPD=125, Chance=330_000, Income=4_500, SellPrice=4_050_000 },
-	{ Name="Gamble Baddie", Rarity="Legendary", Tier=5, Role="DPS",     BaseHP=2900, BaseATK=1000, BaseDEF=220, BaseSPD=150, Chance=450_000, Income=5_625, SellPrice=5_062_500 },
-
+	{ Name="Rocker Baddie",    Rarity="Legendary", Tier=5, Role="Support",     BaseHP=3200, BaseATK=700,  BaseDEF=360, BaseSPD=130, Chance=200_000, Income=3_600, SellPrice=3_240_000 },
+	{ Name="Pirate Baddie", Rarity="Legendary", Tier=5, Role="DPS",     BaseHP=3000, BaseATK=1000,  BaseDEF=300, BaseSPD=130, Chance=330_000, Income=4_500, SellPrice=4_050_000 },
+	{ Name="Gamble Baddie", Rarity="Legendary", Tier=5, Role="DPS",     BaseHP=2900, BaseATK=1200, BaseDEF=220, BaseSPD=150, Chance=450_000, Income=5_625, SellPrice=5_062_500 },
+	{Name="Horror Protagonist Baddie",Rarity="Legendary",Tier=5,Role="Tank",BaseHP=4200,BaseATK=450,BaseDEF=450,BaseSPD=120,SkillId="Last Scene",Chance=500_000,Income=6_000,SellPrice=5_500_000},
 
 	-- TIER 6: MYTHICAL (Sell Mult: 960)
-	{ Name="Sniper Baddie", Rarity="Mythical", Tier=6, Role="DPS",     BaseHP=4500, BaseATK=1500, BaseDEF=400, BaseSPD=160, Chance=500_000,  Income=7_875,  SellPrice=7_560_000 },
+	{ Name="Sniper Baddie", Rarity="Mythical", Tier=6, Role="DPS",     BaseHP=4500, BaseATK=1500, BaseDEF=400, BaseSPD=160, Chance=1_000_000,  Income=7_875,  SellPrice=6_560_000 },
 	{ Name="Demon Baddie",  Rarity="Mythical", Tier=6, Role="DPS",     BaseHP=5000, BaseATK=1650, BaseDEF=450, BaseSPD=150, Chance=1_250_000,Income=9_843,  SellPrice=9_449_280 },
 	{ Name="Rezu Baddie",   Rarity="Mythical", Tier=6, Role="DPS",     BaseHP=4800, BaseATK=1750, BaseDEF=420, BaseSPD=170, Chance=2_500_000,Income=12_600, SellPrice=12_096_000 },
 	{ Name="Exile Baddie",  Rarity="Mythical", Tier=6, Role="Control", BaseHP=5200, BaseATK=1400, BaseDEF=600, BaseSPD=145, Chance=4_000_000,Income=15_750, SellPrice=15_120_000 },
@@ -158,7 +157,7 @@ GameConfig.BaddiesData = {
 	{ Name="Shilder Baddie", Rarity="Transcendant", Tier=9, Role="Tank",    BaseHP=20000, BaseATK=5000, BaseDEF=3500, BaseSPD=140, Chance=860_000_000,  Income=337_640, SellPrice=384_909_600 },
 	{ Name="Firen Baddie",   Rarity="Transcendant", Tier=9, Role="DPS",     BaseHP=18000, BaseATK=6500, BaseDEF=2000, BaseSPD=190, Chance=2_150_000_000,Income=422_050, SellPrice=481_137_000 },
 	{ Name="Idol Baddie",    Rarity="Transcendant", Tier=9, Role="Support", BaseHP=21000, BaseATK=4800, BaseDEF=3000, BaseSPD=175, Chance=4_300_000_000,Income=540_224, SellPrice=615_855_360 },
-	{ Name="Zaphkiel",       Rarity="Transcendant", Tier=9, Role="Control", BaseHP=19500, BaseATK=6200, BaseDEF=2500, BaseSPD=200, Chance=6_800_000_000,Income=675_280, SellPrice=769_819_200 },
+	{ Name="Zaphkiel Baddie",       Rarity="Transcendant", Tier=9, Role="Control", BaseHP=19500, BaseATK=6200, BaseDEF=2500, BaseSPD=200, Chance=6_800_000_000,Income=675_280, SellPrice=769_819_200 },
 	{ Name="Curse King",     Rarity="Transcendant", Tier=9, Role="DPS",     BaseHP=22000, BaseATK=7200, BaseDEF=2800, BaseSPD=195, Chance=9_400_000_000,Income=844_100, SellPrice=962_274_000 },
 
 
@@ -339,7 +338,12 @@ GameConfig.Mutations = {
 -- ==========================================
 
 GameConfig.CombatSettings = {
-	MaxEnergy = 3, DamageReductionDenom = 120, SpeedCapBonus = 20
+	MaxEnergy = 3, DamageReductionDenom = 120, SpeedCapBonus = 20,
+	BaseK = 120,
+	TierScale = {
+		[1]=1, [2]=2, [3]=5, [4]=10, [5]=25, [6]=75, [7]=200, [8]=500, [9]=1500, [10]=5000, 
+		[11]=20000, [12]=80000, [13]=300000, [14]=1000000, [15]=5000000
+	}
 }
 
 
@@ -355,13 +359,23 @@ GameConfig.Zones = {
 
 
 GameConfig.NPCData = {
-	["NPC_Slime"] = { Name = "Forest Slime", Zone = "Forest", HP = 100500, ATK = 120, DEF = 50, SPD = 85, AI = "Basic" },
-	["NPC_Goblin"] = { Name = "Goblin Boss",  Zone = "Forest", HP = 4500, ATK = 250, DEF = 80, SPD = 95, AI = "Aggressive" }
+	["NPC_Slime"] = { Name = "Forest Slime", Zone = "Forest", HP = 1000, ATK = 120, DEF = 50, SPD = 85, AI = "Basic" },
+	["NPC_Goblin"] = { Name = "Goblin Boss",  Zone = "Forest", HP = 4500, ATK = 250, DEF = 80, SPD = 95, AI = "Aggressive", PartyComp = {"NPC_Slime", "NPC_Slime"} }
 }
 
 
-function GameConfig.GetNPCData(name)
-	return GameConfig.NPCData[name]
+function GameConfig.GetNPCData(identifier)
+	if GameConfig.NPCData[identifier] then 
+		return GameConfig.NPCData[identifier] 
+	end
+	
+	for _, data in pairs(GameConfig.NPCData) do
+		if data.Name == identifier then
+			return data
+		end
+	end
+	
+	return nil
 end
 
 

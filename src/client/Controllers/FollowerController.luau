@@ -259,9 +259,9 @@ function FollowerController:Start()
 			if not char or not char:FindFirstChild("HumanoidRootPart") then continue end
 
 			local rootPos = char.HumanoidRootPart.CFrame
-
-			local mainUI = playerGui:FindFirstChild("MainUI")
-			local isCombat = mainUI and mainUI:FindFirstChild("TurnIndicator") and mainUI.TurnIndicator.Visible
+			
+			-- HIDE FOLLOWERS DURING OVERWORLD COMBAT
+			local isCombat = player:GetAttribute("InCombat") == true
 
 			for _, partyBaddieData in ipairs(partyBaddies) do
 				local model = partyBaddieData.Model

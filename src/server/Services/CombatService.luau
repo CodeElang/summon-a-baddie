@@ -3,6 +3,7 @@ local CombatService = {}
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local HttpService = game:GetService("HttpService")
 local DataService = require(script.Parent.DataService)
+local EnemyAIHandler = require(script.Parent.Parent.Modules.EnemyAIHandler)
 local GameConfig = require(ReplicatedStorage.Shared.GameConfig)
 local SkillData = require(ReplicatedStorage.Shared.Databases.SkillData)
 local Network = ReplicatedStorage.Network
@@ -56,6 +57,7 @@ function CombatService:InitiateBattle(player, npcId, npcModel)
 	local zoneData = GameConfig.Zones[npcData.Zone]
 	local zoneMult = zoneData and zoneData.DifficultyMult or 1.0
 
+	-- Spawn primary enemy
 	table.insert(battleInst.Units, {
 		Uid = "Enemy_1",
 		IsPlayer = false,
@@ -65,6 +67,7 @@ function CombatService:InitiateBattle(player, npcId, npcModel)
 		ATK = math.floor(npcData.ATK * zoneMult),
 		DEF = math.floor(npcData.DEF * zoneMult),
 		SPD = npcData.SPD,
+		BaseSPD = npcData.SPD,
 		Energy = 0,
 		Shield = 0,
 		ShieldStack = {},
@@ -73,6 +76,34 @@ function CombatService:InitiateBattle(player, npcId, npcModel)
 		AI = npcData.AI
 	})
 
+	-- Spawn companion enemies from PartyComp
+	if npcData.PartyComp then
+		for i, compId in ipairs(npcData.PartyComp) do
+			local compData = GameConfig.GetNPCData(compId)
+			if compData then
+				local compZone = GameConfig.Zones[compData.Zone]
+				local compMult = compZone and compZone.DifficultyMult or zoneMult
+				table.insert(battleInst.Units, {
+					Uid = "Enemy_" .. (i + 1),
+					IsPlayer = false,
+					Name = compData.Name,
+					HP = math.floor(compData.HP * compMult),
+					MaxHP = math.floor(compData.HP * compMult),
+					ATK = math.floor(compData.ATK * compMult),
+					DEF = math.floor(compData.DEF * compMult),
+					SPD = compData.SPD,
+					BaseSPD = compData.SPD,
+					Energy = 0,
+					Shield = 0,
+					ShieldStack = {},
+					Buffs = {},
+					CDs = {},
+					AI = compData.AI
+				})
+			end
+		end
+	end
+
 	for _, unit in ipairs(battleInst.Units) do
 		unit.AV = 10000 / math.max(1, unit.SPD)
 	end
@@ -80,6 +111,8 @@ function CombatService:InitiateBattle(player, npcId, npcModel)
 	ActiveBattles[battleId] = battleInst
 	BattleLogger.StartBattle(battleId, battleInst.Units)
 	self:SetupBattleArena(battleId, npcModel)
+	
+	player:SetAttribute("InCombat", true)
 
 	task.delay(1, function()
 		if ActiveBattles[battleId] then
@@ -131,6 +164,7 @@ function CombatService:AssemblePlayerParty(profile)
 							Tier     = bCfg.Tier,
 							HP = finalHP, MaxHP = finalHP,
 							ATK = finalATK, DEF = finalDEF, SPD = finalSPD,
+							BaseSPD   = bCfg.BaseSPD,
 							Role      = bCfg.Role,
 							Energy    = startEnergy, MaxEnergy = 3,
 							Shield    = 0,
@@ -149,7 +183,7 @@ function CombatService:AssemblePlayerParty(profile)
 	return units
 end
 
-function CombatService:CalculateDamage(attacker, defender, skillMultiplier)
+function CombatService:CalculateDamage(attacker, defender, skillMultiplier, flatBonus)
 	local atkMult = 1.0
 	local defMult = 1.0
 
@@ -166,7 +200,7 @@ function CombatService:CalculateDamage(attacker, defender, skillMultiplier)
 	atkMult = math.max(0.1, atkMult)
 	defMult = math.max(0.1, defMult)
 
-	local rawDamage     = (attacker.ATK * atkMult) * skillMultiplier
+	local rawDamage     = ((attacker.ATK * atkMult) * skillMultiplier) + (flatBonus or 0)
 	local finalDef      = math.max(0, defender.DEF * defMult)
 	local damageReduction = finalDef / (finalDef + 120)
 	local finalDamage   = math.floor(rawDamage * (1 - damageReduction))
@@ -228,15 +262,15 @@ function CombatService:ApplyStackableShield(battleId, targetUid, amount, duratio
 	duration = duration or 2
 
 	if #target.ShieldStack >= maxStacks then
-		local lowestDurIdx = 1
-		local lowestDur = math.huge
+		local lowestAmtIdx = 1
+		local lowestAmt = math.huge
 		for i, st in ipairs(target.ShieldStack) do
-			if st.Duration < lowestDur then
-				lowestDur = st.Duration
-				lowestDurIdx = i
+			if st.Amount < lowestAmt then
+				lowestAmt = st.Amount
+				lowestAmtIdx = i
 			end
 		end
-		target.ShieldStack[lowestDurIdx] = {Amount = amount, Duration = duration}
+		target.ShieldStack[lowestAmtIdx] = {Amount = amount, Duration = duration}
 	else
 		table.insert(target.ShieldStack, {Amount = amount, Duration = duration})
 	end
@@ -276,20 +310,29 @@ function CombatService:ApplyStackableBuff(battleId, targetUid, buffType, amount,
 		
 		local oldBuff = target.Buffs[lowestDurIdx]
 		if oldBuff.Type == "Speed" then
-			target.SPD -= oldBuff.Amount
-			target.AV = target.AV * ((target.SPD + oldBuff.Amount) / math.max(1, target.SPD))
+			local preSpd = target.SPD
+			local preAV = target.AV
+			target.SPD = math.max(1, target.SPD - oldBuff.Amount)
+			target.AV = target.AV * (preSpd / math.max(1, target.SPD))
+			BattleLogger.LogSpeedBuff(battleId, target, preSpd, target.SPD, preAV, target.AV)
 		end
 
 		target.Buffs[lowestDurIdx] = {Type = buffType, Amount = amount, Duration = duration}
 		if buffType == "Speed" then
+			local preSpd = target.SPD
+			local preAV = target.AV
 			target.SPD += amount
-			target.AV = target.AV * ((target.SPD - amount) / math.max(1, target.SPD))
+			target.AV = target.AV * (preSpd / math.max(1, target.SPD))
+			BattleLogger.LogSpeedBuff(battleId, target, preSpd, target.SPD, preAV, target.AV)
 		end
 	else
 		table.insert(target.Buffs, {Type = buffType, Amount = amount, Duration = duration})
 		if buffType == "Speed" then
+			local preSpd = target.SPD
+			local preAV = target.AV
 			target.SPD += amount
-			target.AV = target.AV * ((target.SPD - amount) / math.max(1, target.SPD))
+			target.AV = target.AV * (preSpd / math.max(1, target.SPD))
+			BattleLogger.LogSpeedBuff(battleId, target, preSpd, target.SPD, preAV, target.AV)
 		end
 	end
 end
@@ -358,7 +401,11 @@ function CombatService:ProcessTurnStartHooks(battleId, unit)
 	-- Decrement CDs
 	if unit.CDs then
 		for skillId, cd in pairs(unit.CDs) do
-			if cd > 0 then unit.CDs[skillId] = cd - 1 end
+			if cd - 1 <= 0 then
+				unit.CDs[skillId] = nil
+			else
+				unit.CDs[skillId] = cd - 1
+			end
 		end
 	end
 
@@ -369,9 +416,20 @@ function CombatService:ProcessTurnStartHooks(battleId, unit)
 		local buff = unit.Buffs[i]
 
 		if buff.Type == "Burn" then
-			local dmg = math.floor(unit.MaxHP * (buff.Value or 0.05))
+			-- Burn: Damage based on attacker's ATK snapshot * buff.Value
+			local dmg = math.floor((buff.SourceATK or 0) * (buff.Value or 0.50))
+			dmg = math.max(1, dmg)
 			self:ApplyDamage(battleId, unit.Uid, dmg)
+			BattleLogger.LogActionResult(battleId, unit, unit, "Damage", dmg, "Burn Tick")
 			TurnUpdateEvent:FireClient(battleInst.Player, "AttackVisual", unit.Uid, unit.Uid, dmg, unit.HP, unit.MaxHP, unit.Shield, "VFX_Burn_Tick")
+			task.wait(0.5)
+		elseif buff.Type == "Poison" then
+			-- Poison: Damage based on target's current HP * buff.Value
+			local dmg = math.floor(unit.HP * (buff.Value or 0.05))
+			dmg = math.max(1, dmg)
+			self:ApplyDamage(battleId, unit.Uid, dmg)
+			BattleLogger.LogActionResult(battleId, unit, unit, "Damage", dmg, "Poison Tick")
+			TurnUpdateEvent:FireClient(battleInst.Player, "AttackVisual", unit.Uid, unit.Uid, dmg, unit.HP, unit.MaxHP, unit.Shield, "VFX_Poison_Tick")
 			task.wait(0.5)
 		elseif buff.Type == "Stun" then
 			isStunned = true
@@ -381,8 +439,11 @@ function CombatService:ProcessTurnStartHooks(battleId, unit)
 
 		if buff.Duration <= 0 then
 			if buff.Type == "Speed" then
-				unit.SPD -= buff.Amount
-				unit.AV = unit.AV * ((unit.SPD + buff.Amount) / math.max(1, unit.SPD))
+				local preSpd = unit.SPD
+				local preAV = unit.AV
+				unit.SPD = math.max(1, unit.SPD - buff.Amount)
+				unit.AV = unit.AV * (preSpd / math.max(1, unit.SPD))
+				BattleLogger.LogSpeedBuff(battleId, unit, preSpd, unit.SPD, preAV, unit.AV)
 				speedChanged = true
 			end
 			table.remove(unit.Buffs, i)
@@ -458,6 +519,7 @@ function CombatService:ProcessNextTurn(battleId)
 	end
 
 	local displayQueue = self:BuildDisplayQueue(battleInst, currentUnit, 5)
+	BattleLogger.LogTurnStart(battleId, currentUnit, displayQueue)
 	TurnUpdateEvent:FireClient(battleInst.Player, "UpdateTurnUI", currentUnit.Name, displayQueue)
 
 	if currentUnit.IsPlayer then
@@ -465,6 +527,7 @@ function CombatService:ProcessNextTurn(battleId)
 			BattleId   = battleId,
 			ActiveUnit = currentUnit,
 			Enemies    = aliveEnemies,
+			Allies     = alivePlayers,
 			SkillCDs   = currentUnit.CDs
 		})
 	else
@@ -493,6 +556,15 @@ SubmitActionEvent.OnServerInvoke = function(player, battleId, actionType, target
 	if actionType == "Ultimate" and (currentUnit.Tier < 5 or currentUnit.Energy < 3)         then return false end
 	if type(targetUid) ~= "string"                                                           then return false end
 
+	-- STRICT COOLDOWN BLOCKER
+	if actionType == "Skill" then
+		local usedSkillId = currentUnit.SkillId or "Basic_Attack"
+		if currentUnit.CDs[usedSkillId] and currentUnit.CDs[usedSkillId] > 0 then
+			warn("[CombatService] Blocked CD spam: " .. player.Name .. " tried " .. usedSkillId .. " (CD: " .. tostring(currentUnit.CDs[usedSkillId]) .. ")")
+			return false
+		end
+	end
+
 	local targetUnit = CombatService:GetUnitByUid(battleInst, targetUid)
 	if not targetUnit or targetUnit.HP <= 0 then return false end
 
@@ -516,23 +588,112 @@ function CombatService:ProcessEffects(battleId, attacker, target, effectsArray, 
 
 		if applies then
 			if effect.Type == "Damage" then
-				local dmg = self:CalculateDamage(attacker, target, effect.Multiplier)
+				local dmg = self:CalculateDamage(attacker, target, effect.Multiplier or 1.0, effect.FlatBonus)
 				self:ApplyDamage(battleId, target.Uid, dmg)
 				totalDamage += dmg
+				BattleLogger.LogActionResult(battleId, attacker, target, "Damage", dmg)
+
 			elseif effect.Type == "Heal" then
-				local heal = math.floor(attacker.MaxHP * effect.Multiplier)
+				local heal = effect.FlatValue or 0
+				if effect.MaxHPPct then
+					heal += math.floor(attacker.MaxHP * effect.MaxHPPct)
+				elseif effect.MissingHPPct then
+					heal += math.floor((target.MaxHP - target.HP) * effect.MissingHPPct)
+				end
+				if heal == 0 and effect.Multiplier then
+					heal = math.floor(attacker.MaxHP * effect.Multiplier)
+				end
 				target.HP = math.min(target.MaxHP, target.HP + heal)
 				totalHeal += heal
+				BattleLogger.LogActionResult(battleId, attacker, target, "Heal", heal)
+
 			elseif effect.Type == "Shield" then
-				local shield = math.floor(attacker.DEF * effect.Multiplier)
+				local shield = effect.FlatValue or 0
+				if effect.MaxHPPct then
+					shield += math.floor(attacker.MaxHP * effect.MaxHPPct)
+				elseif effect.ShieldPct then
+					shield += math.floor(target.MaxHP * effect.ShieldPct)
+				end
+				if shield == 0 and effect.Multiplier then
+					shield = math.floor(attacker.DEF * effect.Multiplier)
+				end
 				self:ApplyStackableShield(battleId, target.Uid, shield, effect.Duration, effect.MaxStacks)
 				totalShield += shield
+				BattleLogger.LogActionResult(battleId, attacker, target, "Shield", shield)
+
 			elseif effect.Type == "Buff" then
-				self:ApplyStackableBuff(battleId, target.Uid, effect.BuffType, effect.Amount, effect.Duration, effect.MaxStacks)
-				table.insert(appliedTags, "+" .. effect.Amount .. " " .. effect.BuffType)
+				local buffAmt = effect.Amount
+				-- Support SPDPct: dynamically compute buff amount from target's current SPD
+				if effect.SPDPct and not buffAmt then
+					buffAmt = math.floor((target.BaseSPD or target.SPD) * effect.SPDPct)
+				end
+				self:ApplyStackableBuff(battleId, target.Uid, effect.BuffType, buffAmt, effect.Duration, effect.MaxStacks)
+				table.insert(appliedTags, "+" .. tostring(buffAmt) .. " " .. effect.BuffType)
+				BattleLogger.LogActionResult(battleId, attacker, target, "Buff", 0, "+" .. tostring(buffAmt) .. " " .. effect.BuffType)
+
+			elseif effect.Type == "Delay" then
+				-- Delay: Push target further back in the AV queue by a percentage of their base AV
+				local delayAmount = (10000 / math.max(1, target.SPD)) * (effect.Amount or 0)
+				target.AV = target.AV + delayAmount
+				table.insert(appliedTags, "DELAYED")
+				BattleLogger.LogActionResult(battleId, attacker, target, "Buff", 0, "Delayed AV +" .. string.format("%.0f", delayAmount))
+				-- Refresh turn queue visually since AV changed
+				local currentActor = self:GetUnitByUid(battleInst, battleInst.CurrentActorUid)
+				if currentActor then
+					local refreshedQueue = self:BuildDisplayQueue(battleInst, currentActor, 5)
+					TurnUpdateEvent:FireClient(battleInst.Player, "RefreshTurnQueue", refreshedQueue)
+				end
+
+			elseif effect.Type == "HPCost" then
+				-- HPCost: Subtract HP from the ATTACKER (self-damage)
+				local cost = effect.FlatValue or 0
+				if effect.MaxHPPct then
+					cost += math.floor(attacker.MaxHP * effect.MaxHPPct)
+				end
+				attacker.HP = math.max(1, attacker.HP - cost)
+				BattleLogger.LogActionResult(battleId, attacker, attacker, "Damage", cost, "HP Cost")
+				-- Immediately update attacker's HP bar on the client
+				TurnUpdateEvent:FireClient(battleInst.Player, "AttackVisual", attacker.Uid, attacker.Uid, cost, attacker.HP, attacker.MaxHP, attacker.Shield, "VFX_HPCost")
+				task.wait(0.5)
+
 			elseif effect.Type == "ApplyStatus" then
-				self:ApplyStackableBuff(battleId, target.Uid, effect.Status, effect.Value or 0, effect.Duration, effect.MaxStacks or 1)
-				table.insert(appliedTags, "+" .. string.upper(effect.Status))
+				local statusType = effect.Status
+				local isHardCC = (statusType == "Stun" or statusType == "Freeze")
+
+				-- Boss Immunity: Hard CC cannot be applied to bosses
+				if isHardCC and target.IsBoss then
+					table.insert(appliedTags, statusType .. " RESISTED")
+					BattleLogger.LogActionResult(battleId, attacker, target, "Buff", 0, statusType .. " RESISTED (Boss)")
+				else
+					-- For Burn, inject SourceATK so DoT ticks scale off the attacker
+					local buffEntry = {
+						Type = statusType,
+						Value = effect.Value or 0,
+						Duration = effect.Duration,
+					}
+					if statusType == "Burn" then
+						buffEntry.SourceATK = attacker.ATK
+					end
+
+					-- Stack management
+					local maxStacks = effect.MaxStacks or 1
+					local sameTypeCount = 0
+					for _, b in ipairs(target.Buffs) do
+						if b.Type == statusType then sameTypeCount += 1 end
+					end
+
+					if sameTypeCount < maxStacks then
+						table.insert(target.Buffs, buffEntry)
+					end
+
+					table.insert(appliedTags, "+" .. string.upper(statusType))
+					BattleLogger.LogActionResult(battleId, attacker, target, "Buff", 0, statusType .. " Applied")
+				end
+			end
+		else
+			-- Effect missed due to Chance roll
+			if effect.Type == "ApplyStatus" then
+				BattleLogger.LogActionResult(battleId, attacker, target, "Buff", 0, (effect.Status or "Status") .. " MISSED")
 			end
 		end
 	end
@@ -548,6 +709,15 @@ function CombatService:ProcessEffects(battleId, attacker, target, effectsArray, 
 	end
 
 	TurnUpdateEvent:FireClient(battleInst.Player, "AttackVisual", attacker.Uid, target.Uid, displayValue, target.HP, target.MaxHP, target.Shield, visualTag)
+
+	-- Death visual: notify client to remove corpse
+	if target.HP <= 0 then
+		task.delay(0.5, function()
+			if battleInst and battleInst.Player then
+				TurnUpdateEvent:FireClient(battleInst.Player, "DeathVisual", target.Uid)
+			end
+		end)
+	end
 
 	if #appliedTags > 0 then
 		local currentActor = self:GetUnitByUid(battleInst, battleInst.CurrentActorUid)
@@ -568,35 +738,41 @@ function CombatService:ExecuteAction(battleId, attacker, actionType, targetUid)
 
 	local skillInfo = SkillData.Dictionary[usedSkillId] or SkillData.Dictionary["Basic_Attack"]
 
+	BattleLogger.LogActionDecision(battleId, attacker, actionType, usedSkillId, skillInfo)
+
+	local oldEnergy = attacker.Energy or 0
 	if actionType == "Ultimate" then
 		attacker.Energy = 0
 	elseif attacker.Tier and attacker.Tier >= 5 and attacker.Energy < attacker.MaxEnergy then
 		attacker.Energy = math.min(attacker.MaxEnergy, attacker.Energy + (skillInfo.EnergyGain or 1))
 	end
+	BattleLogger.LogEnergyChange(battleId, attacker, oldEnergy, attacker.Energy or 0)
 
 	-- Apply Cooldown internally if any
-	if skillInfo.Cooldown and actionType == "Skill" then
-		attacker.CDs[usedSkillId] = skillInfo.Cooldown
+	if skillInfo.BaseCooldown and actionType == "Skill" then
+		attacker.CDs[usedSkillId] = skillInfo.BaseCooldown
 	end
 
 	local actualTargets = {}
 
-	if skillInfo.TargetRule == "All_Enemies" then
+	if skillInfo.TargetType == "AllEnemies" then
 		actualTargets = attacker.IsPlayer and self:GetAliveEnemies(battleInst) or self:GetAlivePlayers(battleInst)
-	elseif skillInfo.TargetRule == "All_Allies" and attacker.IsPlayer then
-		actualTargets = self:GetAlivePlayers(battleInst)
-	elseif skillInfo.TargetRule == "All_Allies_Exclude_Self" and attacker.IsPlayer then
-		local allies = self:GetAlivePlayers(battleInst)
+	elseif skillInfo.TargetType == "AllAllies" then
+		actualTargets = attacker.IsPlayer and self:GetAlivePlayers(battleInst) or self:GetAliveEnemies(battleInst)
+	elseif skillInfo.TargetType == "AllAlliesExcludeSelf" then
+		local allies = attacker.IsPlayer and self:GetAlivePlayers(battleInst) or self:GetAliveEnemies(battleInst)
 		for _, ally in ipairs(allies) do
 			if ally.Uid ~= attacker.Uid then
 				table.insert(actualTargets, ally)
 			end
 		end
-	elseif skillInfo.TargetRule == "Lowest_Ally" and attacker.IsPlayer then
-		table.insert(actualTargets, self:GetLowestHPAlly(battleInst))
-	elseif skillInfo.TargetRule == "Lowest_Speed_Ally" and attacker.IsPlayer then
-		table.insert(actualTargets, self:GetLowestSpeedAlly(battleInst))
-	elseif skillInfo.TargetRule == "Self" then
+	elseif skillInfo.TargetType == "LowestAlly" then
+		local target = attacker.IsPlayer and self:GetLowestHPAlly(battleInst) or nil
+		if target then table.insert(actualTargets, target) end
+	elseif skillInfo.TargetType == "LowestSpeedAlly" then
+		local target = attacker.IsPlayer and self:GetLowestSpeedAlly(battleInst) or nil
+		if target then table.insert(actualTargets, target) end
+	elseif skillInfo.TargetType == "Self" then
 		table.insert(actualTargets, attacker)
 	else
 		local singleTarget = self:GetUnitByUid(battleInst, targetUid)
@@ -646,7 +822,7 @@ function CombatService:ExecuteNPCAction(battleId, npcUnit)
 
 	local alivePlayers = self:GetAlivePlayers(battleInst)
 	if #alivePlayers > 0 then
-		local target = alivePlayers[math.random(1, #alivePlayers)]
+		local target = EnemyAIHandler.GetTarget(alivePlayers)
 		local skillInfo = SkillData.Dictionary["Basic_Attack"]
 		if npcUnit.SkillId and SkillData.Dictionary[npcUnit.SkillId] then
 			skillInfo = SkillData.Dictionary[npcUnit.SkillId]
@@ -684,6 +860,7 @@ function CombatService:EndBattle(battleId, result)
 		char.Humanoid.JumpPower = 50
 	end
 
+	battleInst.Player:SetAttribute("InCombat", false)
 	BattleStartEvent:FireClient(battleInst.Player, {IsEnding = true, Result = result})
 	ActiveBattles[battleId] = nil
 end
@@ -747,29 +924,70 @@ function CombatService:SetupBattleArena(battleId, npcModel)
 	arenaFolder.Parent = workspace
 	battleInst.ArenaFolder = arenaFolder
 
-	local enemySpawnPos = rootPart.CFrame * CFrame.new(0, 0, -15)
+	-- =============================================
+	-- ARENA SPACING: 18 studs Z gap between teams
+	-- =============================================
 
-	if npcModel and npcModel.PrimaryPart then
-		local npcHum = npcModel:FindFirstChildOfClass("Humanoid")
-		if npcHum then npcHum.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None end
-		npcModel:PivotTo(CFrame.lookAt(enemySpawnPos.Position, rootPart.Position))
-		npcModel.Parent = arenaFolder
-		for _, u in ipairs(battleInst.Units) do
-			if not u.IsPlayer then
-				npcModel.Name = u.Uid
-				u.Model3D     = npcModel
-				break
+	-- Enemy formation: center at Z=-18, flanks at Z=-20, X spread 7 studs
+	local enemyFormation = {
+		CFrame.new(0,  0, -18),
+		CFrame.new(-7, 0, -20),
+		CFrame.new(7,  0, -20),
+	}
+
+	local enemyUnits = self:GetAliveEnemies(battleInst)
+	local enemyPositions = {}
+
+	for i, eUnit in ipairs(enemyUnits) do
+		local offset = enemyFormation[i] or CFrame.new((i - 2) * 7, 0, -18)
+		local spawnCFrame = rootPart.CFrame * offset
+		local model
+
+		if i == 1 and npcModel and npcModel.PrimaryPart then
+			model = npcModel
+		elseif npcModel then
+			local origArch = npcModel.Archivable
+			npcModel.Archivable = true
+			model = npcModel:Clone()
+			npcModel.Archivable = origArch
+		end
+
+		if model then
+			local npcHum = model:FindFirstChildOfClass("Humanoid")
+			if npcHum then npcHum.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None end
+			model.Name = eUnit.Uid
+			model:PivotTo(CFrame.lookAt(spawnCFrame.Position, rootPart.Position))
+			model.Parent = arenaFolder
+			eUnit.Model3D = model
+			table.insert(enemyPositions, spawnCFrame.Position)
+
+			local hum = model:FindFirstChildOfClass("Humanoid")
+			local idleAnim = model:FindFirstChild("IdleAnim", true)
+			if hum and idleAnim then
+				local animator = hum:FindFirstChildOfClass("Animator") or Instance.new("Animator", hum)
+				local track = animator:LoadAnimation(idleAnim)
+				track.Looped = true
+				track:Play()
 			end
 		end
 	end
 
+	-- Compute actual enemy centroid
+	local enemyCenterPos = Vector3.new(0, 0, 0)
+	for _, pos in ipairs(enemyPositions) do
+		enemyCenterPos = enemyCenterPos + pos
+	end
+	enemyCenterPos = enemyCenterPos / math.max(1, #enemyPositions)
+
+	-- Player formation: behind the player root, 8 studs X spread
 	local playerUnits = self:GetAlivePlayers(battleInst)
 	local formationOffsets = {
-		Vector3.new(-4, 0, -5),
-		Vector3.new(4,  0, -5),
-		Vector3.new(-8, 0, -3),
-		Vector3.new(8,  0, -3)
+		Vector3.new(-4, 0, 3),
+		Vector3.new(4,  0, 3),
+		Vector3.new(-8, 0, 5),
+		Vector3.new(8,  0, 5)
 	}
+	local playerPositions = {}
 
 	for i, pUnit in ipairs(playerUnits) do
 		local baddieCfg = GameConfig.GetBaddieData(pUnit.Name)
@@ -786,10 +1004,11 @@ function CombatService:SetupBattleArena(battleId, npcModel)
 			local hum = clone3D:FindFirstChildOfClass("Humanoid")
 			if hum then hum.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None end
 
-			local spawnPos = rootPart.CFrame * CFrame.new(formationOffsets[i] or Vector3.new(0, 0, -5))
-			clone3D:PivotTo(CFrame.lookAt(spawnPos.Position, enemySpawnPos.Position))
+			local spawnPos = rootPart.CFrame * CFrame.new(formationOffsets[i] or Vector3.new(0, 0, 3))
+			clone3D:PivotTo(CFrame.lookAt(spawnPos.Position, enemyCenterPos))
 			clone3D.Parent = arenaFolder
 			pUnit.Model3D  = clone3D
+			table.insert(playerPositions, spawnPos.Position)
 
 			local idleAnim = clone3D:FindFirstChild("IdleAnim", true)
 			if hum and idleAnim then
@@ -801,11 +1020,18 @@ function CombatService:SetupBattleArena(battleId, npcModel)
 		end
 	end
 
+	-- Compute actual player centroid
+	local playerCenterPos = Vector3.new(0, 0, 0)
+	for _, pos in ipairs(playerPositions) do
+		playerCenterPos = playerCenterPos + pos
+	end
+	playerCenterPos = playerCenterPos / math.max(1, #playerPositions)
+
 	BattleStartEvent:FireClient(battleInst.Player, {
 		Id             = battleId,
 		Units          = battleInst.Units,
-		CenterPosition = rootPart.Position:Lerp(enemySpawnPos.Position, 0.5),
-		CameraOffset   = Vector3.new(15, 10, 0)
+		PlayerCenter   = playerCenterPos,
+		EnemyCenter    = enemyCenterPos
 	})
 end
 
